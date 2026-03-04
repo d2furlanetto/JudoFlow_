@@ -1,0 +1,7 @@
+{
+  "name": "JudoFlow",
+  "description": "Plataforma completa para gestão de dojos, aulas de judô, presença e competições.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
