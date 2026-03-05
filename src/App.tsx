@@ -45,8 +45,10 @@ const SetupScreen: React.FC = () => (
   </div>
 );
 
+import { PermissionErrorGuide } from './components/PermissionErrorGuide';
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading, profileError } = useAuth();
 
   if (loading) {
     return (
@@ -58,6 +60,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!user) {
     return <Navigate to="/login" />;
+  }
+
+  if (profileError === 'PERMISSIONS_DENIED') {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+        <PermissionErrorGuide errorSource="Perfil do Usuário" />
+      </div>
+    );
   }
 
   return <>{children}</>;

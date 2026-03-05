@@ -11,6 +11,23 @@ export type BeltRank =
   | 'marrom' 
   | 'preta';
 
+export interface BeltHistory {
+  belt: BeltRank;
+  date: string;
+}
+
+export interface CompetitionRecord {
+  name: string;
+  date: string;
+  result: string; // e.g. "Campeão", "Vice", "3º Lugar"
+}
+
+export interface CourseRecord {
+  name: string;
+  date: string;
+  type: 'técnico' | 'arbitragem' | 'outro';
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -24,6 +41,10 @@ export interface UserProfile {
   tuitionStatus: 'up-to-date' | 'overdue';
   tuitionDueDate?: string;
   customTuitionValue?: number; // Optional override for specific students
+  association?: string; // Clube ou academia atual
+  beltHistory?: BeltHistory[];
+  competitions?: CompetitionRecord[];
+  courses?: CourseRecord[];
 }
 
 export interface Dojo {
@@ -42,6 +63,10 @@ export interface ClassSession {
   daysOfWeek: number[]; // 0-6
   students: string[]; // UIDs
   tuitionValue: number; // Base tuition for this class
+  maxStudents?: number;
+  minAge?: number;
+  maxAge?: number;
+  ageRange?: string; // e.g. "5-10", "Livre"
 }
 
 export interface AttendanceRecord {
