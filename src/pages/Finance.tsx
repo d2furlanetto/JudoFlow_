@@ -10,10 +10,12 @@ export const Finance: React.FC = () => {
   const { profile } = useAuth();
   const [tuitionValue, setTuitionValue] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
 
   useEffect(() => {
     const fetchTuition = async () => {
       if (!db || !profile) return;
+      setPermissionError(false);
       
       // If custom value exists, use it
       if (profile.customTuitionValue) {
@@ -32,8 +34,11 @@ export const Finance: React.FC = () => {
         } else {
           setTuitionValue(0); // No class, no tuition yet
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching tuition:", error);
+        if (error.code === 'permission-denied') {
+          setPermissionError(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -52,6 +57,17 @@ export const Finance: React.FC = () => {
     return (
       <div className="flex justify-center py-12">
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (permissionError) {
+    return (
+      <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100 flex items-center gap-3 text-orange-800">
+        <AlertCircle size={20} className="shrink-0" />
+        <p className="text-xs font-medium">
+          Não foi possível carregar os dados financeiros devido a restrições de permissão no Firebase.
+        </p>
       </div>
     );
   }

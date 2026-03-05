@@ -3,7 +3,7 @@ import { useAuth } from '../firebase/AuthContext';
 import { db } from '../firebase/config';
 import { collection, query, where, getDocs, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, Users, ChevronLeft, Plus, Save, UserPlus } from 'lucide-react';
+import { Check, X, Users, ChevronLeft, Plus, Save, UserPlus, Shield } from 'lucide-react';
 import { ClassSession, UserProfile } from '../types';
 
 export const Classes: React.FC = () => {
@@ -14,6 +14,7 @@ export const Classes: React.FC = () => {
   const [attendance, setAttendance] = useState<Record<string, boolean>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState(false);
 
   // New class form state
   const [newName, setNewName] = useState('');
@@ -25,24 +26,30 @@ export const Classes: React.FC = () => {
     const fetchData = async () => {
       if (!db || !profile) return;
       setLoading(true);
+      setPermissionError(false);
       try {
+        const currentDojoId = profile.dojoId || 'main-dojo';
         // Fetch classes
-        const classesQuery = query(collection(db, 'classes'), where('dojoId', '==', profile.dojoId));
+        const classesQuery = query(collection(db, 'classes'), where('dojoId', '==', currentDojoId));
         const classesSnap = await getDocs(classesQuery);
         const classesList = classesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassSession));
         setClasses(classesList);
 
-        // Fetch unassigned students (those not in any class)
-        // For simplicity, we'll fetch all students and filter those not in any class list
-        const usersQuery = query(collection(db, 'users'), where('role', '==', 'student'), where('dojoId', '==', profile.dojoId));
-        const usersSnap = await getDocs(usersQuery);
-        const allStudents = usersSnap.docs.map(doc => doc.data() as UserProfile);
-        
-        const assignedStudentIds = new Set(classesList.flatMap(c => c.students));
-        const unassigned = allStudents.filter(s => !assignedStudentIds.has(s.uid));
-        setUnassignedStudents(unassigned);
-      } catch (error) {
+        // Fetch unassigned students ONLY if professor/admin
+        if (profile.role === 'professor' || profile.role === 'admin') {
+          const usersQuery = query(collection(db, 'users'), where('role', '==', 'student'), where('dojoId', '==', currentDojoId));
+          const usersSnap = await getDocs(usersQuery);
+          const allStudents = usersSnap.docs.map(doc => doc.data() as UserProfile);
+          
+          const assignedStudentIds = new Set(classesList.flatMap(c => c.students));
+          const unassigned = allStudents.filter(s => !assignedStudentIds.has(s.uid));
+          setUnassignedStudents(unassigned);
+        }
+      } catch (error: any) {
         console.error("Error fetching classes data:", error);
+        if (error.code === 'permission-denied') {
+          setPermissionError(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -50,6 +57,39 @@ export const Classes: React.FC = () => {
 
     fetchData();
   }, [profile]);
+
+  if (permissionError) {
+    return (
+      <div className="bg-orange-50 p-8 rounded-3xl border border-orange-100 space-y-6">
+        <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center shadow-sm">
+          <Shield size={32} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-orange-900">Acesso Bloqueado pelo Firebase</h2>
+          <p className="text-orange-700 text-sm leading-relaxed">
+            O banco de dados (Firestore) recusou a leitura das turmas. Isso acontece porque as <strong>Regras de Segurança</strong> no console do Firebase ainda não foram configuradas corretamente.
+          </p>
+        </div>
+        
+        <div className="bg-white/50 p-4 rounded-2xl space-y-3 border border-orange-200">
+          <p className="text-xs font-bold text-orange-800 uppercase tracking-widest">Como resolver agora:</p>
+          <ol className="text-xs text-orange-800 space-y-3 list-decimal ml-4">
+            <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline font-bold">Console do Firebase</a>.</li>
+            <li>Vá em <strong>Firestore Database</strong> &gt; aba <strong>Rules</strong>.</li>
+            <li>Certifique-se de que a regra permite leitura: <br/><code className="bg-orange-100 p-1 rounded mt-1 block">allow read, write: if request.auth != null;</code></li>
+            <li>Clique em <strong>Publish</strong> e aguarde 30 segundos.</li>
+          </ol>
+        </div>
+
+        <button 
+          onClick={() => window.location.reload()}
+          className="w-full bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-orange-200 transition-transform active:scale-95"
+        >
+          Recarregar e Tentar Novamente
+        </button>
+      </div>
+    );
+  }
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();

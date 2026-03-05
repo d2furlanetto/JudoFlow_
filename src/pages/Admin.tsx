@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../firebase/AuthContext';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { UserProfile, Dojo } from '../types';
 import { Users, Shield, Award, AlertCircle, Home, Save, CreditCard } from 'lucide-react';
 
@@ -12,26 +12,43 @@ export const AdminDashboard: React.FC = () => {
   const [dojoName, setDojoName] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingDojo, setSavingDojo] = useState(false);
+  const [permissionError, setPermissionError] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!db || !profile) return;
+      setPermissionError(false);
       try {
+        const currentDojoId = profile.dojoId || 'main-dojo';
+
         // Fetch users
         const querySnapshot = await getDocs(collection(db, 'users'));
         const usersList = querySnapshot.docs.map(doc => doc.data() as UserProfile);
         setUsers(usersList);
 
         // Fetch dojo
-        const dojoRef = doc(db, 'dojos', profile.dojoId);
+        const dojoRef = doc(db, 'dojos', currentDojoId);
         const dojoSnap = await getDoc(dojoRef);
         if (dojoSnap.exists()) {
           const dojoData = dojoSnap.data() as Dojo;
           setDojo(dojoData);
           setDojoName(dojoData.name);
+        } else {
+          // Create default dojo if it doesn't exist
+          const defaultDojo: Dojo = {
+            id: currentDojoId,
+            name: 'Dojo Central',
+            address: 'Endereço não configurado'
+          };
+          await setDoc(dojoRef, defaultDojo);
+          setDojo(defaultDojo);
+          setDojoName(defaultDojo.name);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching admin data:", error);
+        if (error.code === 'permission-denied') {
+          setPermissionError(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -39,6 +56,39 @@ export const AdminDashboard: React.FC = () => {
 
     fetchData();
   }, [profile]);
+
+  if (permissionError) {
+    return (
+      <div className="bg-red-50 p-8 rounded-3xl border border-red-100 space-y-6">
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center shadow-sm">
+          <Shield size={32} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-red-900">Erro de Permissão (Firebase)</h2>
+          <p className="text-red-700 text-sm leading-relaxed">
+            O Firebase bloqueou o acesso aos dados administrativos. Isso ocorre porque as <strong>Security Rules</strong> no console do Firebase não permitem a leitura da coleção de usuários ou dojos.
+          </p>
+        </div>
+
+        <div className="bg-white/50 p-4 rounded-2xl space-y-3 border border-red-200">
+          <p className="text-xs font-bold text-red-800 uppercase tracking-widest">Passos para corrigir:</p>
+          <ol className="text-xs text-red-800 space-y-3 list-decimal ml-4">
+            <li>Acesse o <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline font-bold">Console do Firebase</a>.</li>
+            <li>Vá em <strong>Firestore Database</strong> &gt; aba <strong>Rules</strong>.</li>
+            <li>Certifique-se de que a regra permite leitura global para testes: <br/><code className="bg-red-100 p-1 rounded mt-1 block">allow read, write: if request.auth != null;</code></li>
+            <li>Verifique se o seu usuário tem o campo <code>role</code> como <code>"admin"</code> ou <code>"professor"</code> na coleção <code>users</code>.</li>
+          </ol>
+        </div>
+
+        <button 
+          onClick={() => window.location.reload()}
+          className="w-full bg-red-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-red-200 transition-transform active:scale-95"
+        >
+          Recarregar e Tentar Novamente
+        </button>
+      </div>
+    );
+  }
 
   const handleRoleChange = async (uid: string, newRole: 'student' | 'professor' | 'admin') => {
     if (!db) return;
